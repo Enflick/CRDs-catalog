@@ -1,11 +1,12 @@
 {
+  "description": "DataformRepository is the Schema for the dataform API",
   "properties": {
     "apiVersion": {
-      "description": "apiVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+      "description": "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
       "type": "string"
     },
     "kind": {
-      "description": "kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+      "description": "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
       "type": "string"
     },
     "metadata": {
@@ -13,20 +14,131 @@
     },
     "spec": {
       "properties": {
+        "displayName": {
+          "description": "Optional. The repository's user-friendly name.",
+          "type": "string"
+        },
         "gitRemoteSettings": {
           "description": "Optional. If set, configures this repository to be linked to a Git remote.",
           "properties": {
-            "authenticationTokenSecretVersion": {
-              "description": "The name of the Secret Manager secret version to use as an authentication token for Git operations. Must be in the format projects/*/secrets/*/versions/*.",
-              "type": "string"
+            "authenticationTokenSecretVersionRef": {
+              "description": "The name of the Secret Manager secret version to use as an authentication token for Git operations. Must be in the format projects/* /secrets/* /versions/*.",
+              "oneOf": [
+                {
+                  "not": {
+                    "required": [
+                      "external"
+                    ]
+                  },
+                  "required": [
+                    "name"
+                  ]
+                },
+                {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "name"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "namespace"
+                        ]
+                      }
+                    ]
+                  },
+                  "required": [
+                    "external"
+                  ]
+                }
+              ],
+              "properties": {
+                "external": {
+                  "description": " If provided must be in the format `projects/*/secrets/*/versions/*`.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The `name` field of a `SecretManagerSecretVersion` resource.",
+                  "type": "string"
+                },
+                "namespace": {
+                  "description": "The `metadata.namespace` field of a `SecretManagerSecretVersion` resource.",
+                  "type": "string"
+                }
+              },
+              "type": "object",
+              "additionalProperties": false
             },
             "defaultBranch": {
               "description": "The Git remote's default branch name.",
               "type": "string"
             },
-            "tokenStatus": {
-              "description": "Indicates the status of the Git access token. https://cloud.google.com/dataform/reference/rest/v1beta1/projects.locations.repositories#TokenStatus.",
-              "type": "string"
+            "sshAuthenticationConfig": {
+              "description": "Authentication fields for remote uris using SSH protocol.",
+              "properties": {
+                "hostPublicKey": {
+                  "description": "Content of a public SSH key to verify an identity of a remote Git host.",
+                  "type": "string"
+                },
+                "userPrivateKeySecretVersionRef": {
+                  "description": "The name of the Secret Manager secret version to use as a ssh private key for Git operations. Must be in the format projects/*/secrets/*/versions/* .",
+                  "oneOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "external"
+                        ]
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    },
+                    {
+                      "not": {
+                        "anyOf": [
+                          {
+                            "required": [
+                              "name"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "namespace"
+                            ]
+                          }
+                        ]
+                      },
+                      "required": [
+                        "external"
+                      ]
+                    }
+                  ],
+                  "properties": {
+                    "external": {
+                      "description": " If provided must be in the format `projects/*/secrets/*/versions/*`.",
+                      "type": "string"
+                    },
+                    "name": {
+                      "description": "The `name` field of a `SecretManagerSecretVersion` resource.",
+                      "type": "string"
+                    },
+                    "namespace": {
+                      "description": "The `metadata.namespace` field of a `SecretManagerSecretVersion` resource.",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "hostPublicKey",
+                "userPrivateKeySecretVersionRef"
+              ],
+              "type": "object",
+              "additionalProperties": false
             },
             "url": {
               "description": "The Git remote's URL.",
@@ -34,10 +146,59 @@
             }
           },
           "required": [
-            "authenticationTokenSecretVersion",
             "defaultBranch",
             "url"
           ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "npmrcEnvironmentVariablesSecretVersionRef": {
+          "description": "Optional. The name of the Secret Manager secret version to be used to interpolate variables into the .npmrc file for package installation operations.",
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "external"
+                ]
+              },
+              "required": [
+                "name"
+              ]
+            },
+            {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "name"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "namespace"
+                    ]
+                  }
+                ]
+              },
+              "required": [
+                "external"
+              ]
+            }
+          ],
+          "properties": {
+            "external": {
+              "description": " If provided must be in the format `projects/*/secrets/*/versions/*`.",
+              "type": "string"
+            },
+            "name": {
+              "description": "The `name` field of a `SecretManagerSecretVersion` resource.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "The `metadata.namespace` field of a `SecretManagerSecretVersion` resource.",
+              "type": "string"
+            }
+          },
           "type": "object",
           "additionalProperties": false
         },
@@ -76,7 +237,69 @@
           ],
           "properties": {
             "external": {
-              "description": "Allowed value: The `name` field of a `Project` resource.",
+              "description": "The `projectID` field of a project, when not managed by Config Connector.",
+              "type": "string"
+            },
+            "kind": {
+              "description": "The kind of the Project resource; optional but must be `Project` if provided.",
+              "type": "string"
+            },
+            "name": {
+              "description": "The `name` field of a `Project` resource.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "The `namespace` field of a `Project` resource.",
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "additionalProperties": false
+        },
+        "region": {
+          "description": "Immutable. A reference to the region.",
+          "type": "string"
+        },
+        "resourceID": {
+          "description": "Immutable. Optional. The name of the resource. Used for creation and acquisition. When unset, the value of `metadata.name` is used as the default.",
+          "type": "string"
+        },
+        "serviceAccountRef": {
+          "description": "Optional. The service account reference to run workflow invocations under.",
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "external"
+                ]
+              },
+              "required": [
+                "name"
+              ]
+            },
+            {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "name"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "namespace"
+                    ]
+                  }
+                ]
+              },
+              "required": [
+                "external"
+              ]
+            }
+          ],
+          "properties": {
+            "external": {
+              "description": "The `email` field of an `IAMServiceAccount` resource.",
               "type": "string"
             },
             "name": {
@@ -91,13 +314,9 @@
           "type": "object",
           "additionalProperties": false
         },
-        "region": {
-          "description": "Immutable. A reference to the region.",
-          "type": "string"
-        },
-        "resourceID": {
-          "description": "Immutable. Optional. The name of the resource. Used for creation and acquisition. When unset, the value of `metadata.name` is used as the default.",
-          "type": "string"
+        "setAuthenticatedUserAdmin": {
+          "description": "Optional. Input only. If set to true, the authenticated user will be granted the roles/dataform.admin role on the created repository.",
+          "type": "boolean"
         },
         "workspaceCompilationOverrides": {
           "description": "Optional. If set, fields of workspaceCompilationOverrides override the default compilation settings that are specified in dataform.json when creating workspace-scoped compilation results.",
@@ -129,7 +348,7 @@
     "status": {
       "properties": {
         "conditions": {
-          "description": "Conditions represent the latest available observation of the resource's current state.",
+          "description": "Conditions represent the latest available observations of the DataformRepository's current state.",
           "items": {
             "properties": {
               "lastTransitionTime": {
@@ -158,9 +377,18 @@
           },
           "type": "array"
         },
+        "externalRef": {
+          "description": "A unique specifier for the DataformReposity resource in GCP.",
+          "type": "string"
+        },
         "observedGeneration": {
           "description": "ObservedGeneration is the generation of the resource that was most recently observed by the Config Connector controller. If this is equal to metadata.generation, then that means that the current reported status reflects the most recent desired state of the resource.",
+          "format": "int64",
           "type": "integer"
+        },
+        "observedState": {
+          "description": "ObservedState is the state of the resource as most recently observed in GCP.",
+          "type": "object"
         }
       },
       "type": "object",

@@ -109,8 +109,7 @@
                 ]
               },
               "required": [
-                "name",
-                "kind"
+                "name"
               ]
             },
             {
@@ -124,11 +123,6 @@
                   {
                     "required": [
                       "namespace"
-                    ]
-                  },
-                  {
-                    "required": [
-                      "kind"
                     ]
                   }
                 ]
@@ -258,7 +252,7 @@
           ],
           "properties": {
             "external": {
-              "description": "The `projectID` field of a project, when not managed by KCC.",
+              "description": "The `projectID` field of a project, when not managed by Config Connector.",
               "type": "string"
             },
             "kind": {

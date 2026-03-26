@@ -1,108 +1,182 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2059
+
+set -euo pipefail
+
+# Support kubectl context via KUBECTL_CONTEXT environment variable
+KUBECTL_ARGS=(kubectl)
+if [ -n "${KUBECTL_CONTEXT:-}" ]; then
+    KUBECTL_ARGS=(kubectl --context="${KUBECTL_CONTEXT}")
+fi
+
+fetch_crd() {
+    filename=${1%% *}
+    if ! "${KUBECTL_ARGS[@]}" get crds "$filename" -o yaml >"$TMP/$filename.yaml" 2>/dev/null; then
+        printf "Warning: Failed to extract CRD: %s\n" "$filename" >&2
+    fi
+}
 
 # Check if python3 is installed
-if ! command -v python3 &> /dev/null; then
+if ! command -v python3 &>/dev/null; then
     printf "python3 is required for this utility, and is not installed on your machine"
     printf "please visit https://www.python.org/downloads/ to install it"
     exit 1
 fi
 # Check if kubectl is installed
-if ! command -v kubectl &> /dev/null; then
+if ! command -v kubectl &>/dev/null; then
     printf "kubectl is required for this utility, and is not installed on your machine"
     printf "please visit https://kubernetes.io/docs/tasks/tools/#kubectl to install it"
     exit 1
 fi
+# Check if the major version is 4 or higher
+if [[ ! ${BASH_VERSION%%.*} -ge 4 ]]; then
+    printf "Bash version is lower than 4"
+    printf "please visit https://www.gnu.org/software/bash/ to install it"
+    exit 1
+fi
 
 # Check if the pyyaml module is installed
-if ! echo 'import yaml' | python3 &> /dev/null; then
+if ! echo 'import yaml' | python3 &>/dev/null; then
     printf "the python3 module 'yaml' is required, and is not installed on your machine.\n"
 
     while true; do
-        read -p "Do you wish to install this program? (y/n) " yn
+        read -r -p "Do you wish to install this program? (y/n) " yn
         case $yn in
-            [Yy] ) pip3 install pyyaml; break;;
-            "" ) pip3 install pyyaml; break;;
-            [Nn] ) echo "Exiting..."; exit;;
-            * ) echo "Please answer 'y' (yes) or 'n' (no).";;
+        [Yy])
+            pip3 install pyyaml
+            break
+            ;;
+        "")
+            pip3 install pyyaml
+            break
+            ;;
+        [Nn])
+            echo "Exiting..."
+            exit
+            ;;
+        *) echo "Please answer 'y' (yes) or 'n' (no)." ;;
         esac
     done
 fi
 
-# Create temp folder for CRDs
-TMP_CRD_DIR=$HOME/.datree/crds
-mkdir -p $TMP_CRD_DIR
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Create temp folders for CRDs and conversion
+TMP=$(mktemp -d)
+CONVERSION_TMP=$(mktemp -d)
+trap 'rm -rf "$TMP" "$CONVERSION_TMP"' EXIT
 
 # Create final schemas directory
-SCHEMAS_DIR=$HOME/.datree/crdSchemas
-mkdir -p $SCHEMAS_DIR
-cd $SCHEMAS_DIR
+# Use current directory if OUTPUT_DIR is set, otherwise use default
+SCHEMAS_DIR=${OUTPUT_DIR:-$HOME/.datree/crdSchemas}
+mkdir -p "$SCHEMAS_DIR"
 
-# Create array to store CRD kinds and groups
-ORGANIZE_BY_GROUP=true
-declare -A CRD_GROUPS 2>/dev/null
-if [ $? -ne 0 ]; then
-    # Array creation failed, signal to skip organization by group
-    ORGANIZE_BY_GROUP=false
+# Get a list of all CRDs
+printf "Fetching list of CRDs..."
+if [ -n "${KUBECTL_CONTEXT:-}" ]; then
+    printf " (using context: %s)\n" "${KUBECTL_CONTEXT}"
+else
+    printf "\n"
 fi
-
-# Extract CRDs from cluster
-NUM_OF_CRDS=0
-while read -r crd
-do
-    filename=${crd%% *}
-    kubectl get crds "$filename" -o yaml > "$TMP_CRD_DIR/$filename.yaml" 2>&1
-
-    resourceKind=$(grep "kind:" "$TMP_CRD_DIR/$filename.yaml" | awk 'NR==2{print $2}' | tr '[:upper:]' '[:lower:]')
-    resourceGroup=$(grep "group:" "$TMP_CRD_DIR/$filename.yaml" | awk 'NR==1{print $2}')
-
-    # Save name and group for later directory organization
-    CRD_GROUPS["$resourceKind"]="$resourceGroup"
-
-    let ++NUM_OF_CRDS
-done < <(kubectl get crds 2>&1 | sed -n '/NAME/,$p' | tail -n +2)
+IFS=$'\n' read -r -d '' -a CRD_LIST < <("${KUBECTL_ARGS[@]}" get crds 2>&1 | sed -n '/NAME/,$p' | tail -n +2 && printf '\0')
 
 # If no CRDs exist in the cluster, exit
-if [ $NUM_OF_CRDS == 0 ]; then
+if [ ${#CRD_LIST[@]} == 0 ]; then
     printf "No CRDs found in the cluster, exiting...\n"
     exit 0
 fi
 
-# Download converter script
-curl https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py --output $TMP_CRD_DIR/openapi2jsonschema.py 2>/dev/null
+# Extract CRDs from cluster
+FETCHED_CRDS=0
+PARALLELISM=10
+for crd in "${CRD_LIST[@]}"; do
+    printf "Fetching CRD %s/%s...\n" $((FETCHED_CRDS + 1)) ${#CRD_LIST[@]}
 
-# Convert crds to jsonSchema
-python3 $TMP_CRD_DIR/openapi2jsonschema.py $TMP_CRD_DIR/*.yaml
+    # Fetch CRD
+    fetch_crd "$crd" &
+
+    # allow to execute up to $PARALLELISM jobs in parallel
+    if [[ $(jobs -r -p | wc -l) -ge $PARALLELISM ]]; then
+        # now there are $PARALLELISM jobs already running, so wait here for any job
+        # to be finished so there is a place to start next one.
+        wait -n
+    fi
+    ((++FETCHED_CRDS))
+done
+# shellcheck disable=SC2046
+wait $(jobs -p)
+
+
+# Convert crds to jsonSchema - output to temp directory to avoid mixing with existing schemas
+CONVERTER_SCRIPT="$SCRIPT_DIR/openapi2jsonschema.py"
+export FILENAME_FORMAT="{fullgroup}_{kind}_{version}"
+cd "$CONVERSION_TMP"
+python3 "$CONVERTER_SCRIPT" "$TMP"/*.yaml
 conversionResult=$?
 
-# Copy and rename files to support kubeval
-rm -rf $SCHEMAS_DIR/master-standalone
-mkdir -p $SCHEMAS_DIR/master-standalone
-cp $SCHEMAS_DIR/*.json $SCHEMAS_DIR/master-standalone
-find $SCHEMAS_DIR/master-standalone -name '*json' -exec bash -c ' mv -f $0 ${0/\_/-stable-}' {} \;
+# Track which groups we're processing in this run
+declare -A PROCESSED_GROUPS
 
-# Organize schemas by group
-if [ $ORGANIZE_BY_GROUP == true ]; then
-    for schema in $SCHEMAS_DIR/*.json
-    do
-    crdFileName=$(basename $schema .json)
-    crdKind=${crdFileName%%_*}
-    crdGroup=${CRD_GROUPS[$crdKind]}
-    mkdir -p $crdGroup
-    mv $schema ./$crdGroup
+# Find newly generated schemas in the conversion temp directory
+NEW_SCHEMAS=()
+shopt -s nullglob
+for schema in "$CONVERSION_TMP"/*.json; do
+    [ -f "$schema" ] && NEW_SCHEMAS+=("$schema")
+done
+shopt -u nullglob
+
+# Only proceed if we have new schemas
+if [ ${#NEW_SCHEMAS[@]} -gt 0 ]; then
+    # Copy and rename files to support kubeval
+    rm -rf "$SCHEMAS_DIR/master-standalone"
+    mkdir -p "$SCHEMAS_DIR/master-standalone"
+    cp "$CONVERSION_TMP"/*.json "$SCHEMAS_DIR/master-standalone/" 2>/dev/null
+    find "$SCHEMAS_DIR/master-standalone" -name '*json' -exec bash -c ' mv -f $0 ${0/\_/-stable-}' {} \;
+
+    # Organize schemas by group
+    for schema in "${NEW_SCHEMAS[@]}"; do
+        crdFileName=$(basename "$schema")
+        crdGroup=$(echo "$crdFileName" | cut -d"_" -f1)
+        outName=$(echo "$crdFileName" | cut -d"_" -f2-)
+        mkdir -p "$SCHEMAS_DIR/$crdGroup"
+        cp "$schema" "$SCHEMAS_DIR/$crdGroup/$outName"
+        PROCESSED_GROUPS[$crdGroup]=1
     done
+
+    # Copy organized schemas to git repository (when not using custom OUTPUT_DIR)
+    if [ -z "${OUTPUT_DIR:-}" ]; then
+        printf "\nCopying schemas to repository...\n"
+        for crdGroup in "${!PROCESSED_GROUPS[@]}"; do
+            groupDir="$SCHEMAS_DIR/$crdGroup"
+            if [ -d "$groupDir" ]; then
+                # Copy to parent directory of Utilities folder
+                repoDir="$(dirname "$SCRIPT_DIR")/$crdGroup"
+                mkdir -p "$repoDir"
+                cp -r "$groupDir"/*.json "$repoDir/" 2>/dev/null || true
+                printf "  Copied %s schemas\n" "$crdGroup"
+            fi
+        done
+    fi
 fi
 
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-if [ $conversionResult == 0 ]; then
-    printf "${GREEN}Successfully converted $NUM_OF_CRDS CRDs to JSON schema${NC}\n"
+if [ $conversionResult == 0 ] && [ ${#NEW_SCHEMAS[@]} -gt 0 ]; then
+    printf "\n${GREEN}Successfully converted ${FETCHED_CRDS} CRDs to JSON schema${NC}\n"
+    printf "Schemas saved to: ${CYAN}${SCHEMAS_DIR}${NC}\n"
+
+    if [ -z "${OUTPUT_DIR:-}" ] && [ ${#PROCESSED_GROUPS[@]} -gt 0 ]; then
+        printf "\n${GREEN}Schemas organized by API group and copied to:${NC}\n"
+        for crdGroup in "${!PROCESSED_GROUPS[@]}"; do
+            repoDir="$(dirname "$SCRIPT_DIR")/$crdGroup"
+            printf "  - %s/\n" "$repoDir"
+        done | sort -u
+    fi
 
     printf "\nTo validate a CR using various tools, run the relevant command:\n"
     printf "\n- ${CYAN}datree:${NC}\n\$ datree test /path/to/file\n"
-    printf "\n- ${CYAN}kubeconform:${NC}\n\$ kubeconform -summary -output json -schema-location default -schema-location '$HOME/.datree/crdSchemas/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json' /path/to/file\n"
-    printf "\n- ${CYAN}kubeval:${NC}\n\$ kubeval --additional-schema-locations file:\"$HOME/.datree/crdSchemas\" /path/to/file\n\n"
+    printf "\n- ${CYAN}kubeconform:${NC}\n\$ kubeconform -summary -output json -schema-location default -schema-location '${SCHEMAS_DIR}/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json' /path/to/file\n"
+    printf "\n- ${CYAN}kubeval:${NC}\n\$ kubeval --additional-schema-locations file:\"${SCHEMAS_DIR}\" /path/to/file\n\n"
 fi
-
-rm -rf $TMP_CRD_DIR
