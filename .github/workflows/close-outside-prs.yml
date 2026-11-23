@@ -1,0 +1,45 @@
+name: Close outside pull requests
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    # OWNER, MEMBER and COLLABORATOR are TextNow people; everyone else is sent
+    # upstream. Nothing is checked out: pull_request_target holds a write token
+    # and must never run code from the pull request.
+    if: >-
+      github.event.pull_request.author_association != 'OWNER' &&
+      github.event.pull_request.author_association != 'MEMBER' &&
+      github.event.pull_request.author_association != 'COLLABORATOR'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # Via env, never inlined into the script: PR fields are attacker-controlled.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/body.md" <<EOF
+          Hi @$AUTHOR, and thanks for the contribution.
+
+          This repository is TextNow's internal mirror of
+          [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog). It follows
+          upstream automatically and does not take outside pull requests, so I am
+          closing this one. Nothing is wrong with your change.
+
+          If you are adding or updating a CRD schema, please open it against
+          [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog/compare)
+          instead. Once it is merged there, it reaches this mirror on the next
+          weekly sync.
+          EOF
+          gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/body.md"
+          gh pr close "$PR_NUMBER"
