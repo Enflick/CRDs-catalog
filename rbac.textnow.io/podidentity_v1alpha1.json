@@ -93,6 +93,9 @@
             "Manual"
           ]
         },
+        "namespace": {
+          "type": "string"
+        },
         "policyDocument": {
           "type": "string"
         },
