@@ -23,6 +23,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Reads the token here only, so it is not in env for the steps that run
+      # upstream's code. Slack stays off until the secrets exist.
+      - name: Check for Slack credentials
+        id: slack
+        env:
+          TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          CHANNEL: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TOKEN:-}" ] && [ -n "${CHANNEL:-}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SLACK_BOT_TOKEN or SLACK_CHANNEL_ID is not set; skipping Slack."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
@@ -89,3 +105,26 @@ jobs:
         run: |
           set -euo pipefail
           git push origin HEAD:main
+
+      - name: Tell Slack the sync landed
+        if: steps.fetch.outputs.behind == 'true' && steps.slack.outputs.enabled == 'true'
+        uses: Enflick/composite-actions/actions/slack/notify@5791e29a8441b1f479a290c7cc2137b22fe2d096 # v0.8.1
+        with:
+          bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          message: |
+            :arrows_counterclockwise: *CRDs-catalog synced with upstream*
+            Merged `datreeio/CRDs-catalog` into `main`.
+            <${{ github.server_url }}/${{ github.repository }}/commits/main|See what changed> | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run log>
+
+      # failure() so this still runs after the step that failed.
+      - name: Tell Slack the sync failed
+        if: failure() && steps.slack.outputs.enabled == 'true'
+        uses: Enflick/composite-actions/actions/slack/notify@5791e29a8441b1f479a290c7cc2137b22fe2d096 # v0.8.1
+        with:
+          bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          message: |
+            :x: *CRDs-catalog upstream sync failed*
+            `main` was not updated and needs a person. The usual cause is a merge conflict in a CRD schema, which this job refuses to resolve on its own.
+            <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Run log>
