@@ -41,7 +41,7 @@
                             "description": "Selects a key of a ConfigMap.",
                             "properties": {
                               "key": {
-                                "description": "The key to select.",
+                                "description": "The key to select from the ConfigMap's Data field.\nKeys in the BinaryData field are not currently propagated to container env vars.",
                                 "type": "string"
                               },
                               "name": {
@@ -319,7 +319,7 @@
                       "type": "boolean"
                     },
                     "procMount": {
-                      "description": "procMount denotes the type of proc mount to use for the containers.\nThe default value is Default which uses the container runtime defaults for\nreadonly paths and masked paths.\nThis requires the ProcMountType feature flag to be enabled.\nNote that this field cannot be set when spec.os.name is windows.",
+                      "description": "procMount denotes the type of proc mount to use for the containers.\nThe default value is Default which uses the container runtime defaults for\nreadonly paths and masked paths.\nNote that this field cannot be set when spec.os.name is windows.",
                       "type": "string"
                     },
                     "readOnlyRootFilesystem": {
@@ -413,8 +413,16 @@
                   "items": {
                     "description": "VolumeMount describes a mounting of a Volume within a container.",
                     "properties": {
+                      "bindMountOptions": {
+                        "description": "bindMountOptions is the list of additional bind mount options to apply when\nmounting this volume into the container. Allowed values are noexec,\nnodev, and nosuid. These are Linux mount options and have no effect on\nWindows nodes.\nThis field is not supported with image volumes.\nThis is an alpha field and requires enabling the VolumeBindMountOptions feature gate.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "x-kubernetes-list-type": "set"
+                      },
                       "mountPath": {
-                        "description": "Path within the container at which the volume should be mounted.  Must\nnot contain ':'.",
+                        "description": "Path within the container at which the volume should be mounted.",
                         "type": "string"
                       },
                       "mountPropagation": {
@@ -464,6 +472,61 @@
           },
           "type": "object",
           "additionalProperties": false
+        },
+        "forwardProxy": {
+          "description": "ForwardProxy routes all upstream AI/LLM traffic from Gateways referencing this\nGatewayConfig through an HTTP CONNECT forward proxy. This is intended for data planes\nin locked-down networks where direct egress to providers is not permitted and all\noutbound traffic must traverse a proxy.",
+          "properties": {
+            "address": {
+              "description": "Address is the \"host:port\" of the HTTP CONNECT proxy. The host may be a hostname or an\nIP address; the port is required. Upstream connections are tunnelled through this proxy\nvia Envoy's http_11_proxy transport socket, preserving the upstream TLS session.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "address"
+          ],
+          "type": "object",
+          "additionalProperties": false
+        },
+        "globalLLMRequestCosts": {
+          "description": "GlobalLLMRequestCosts defines default LLM request costs that apply to all\nroutes referencing this GatewayConfig. These costs can be overridden on a\nper-route basis via AIGatewayRoute.Spec.LLMRequestCosts.\n\nWhen a request matches a route, the cost calculation proceeds as follows:\n 1. If the route defines LLMRequestCosts with a matching metadataKey, use that.\n 2. Otherwise, fall back to the global cost with that metadataKey (if defined here).\n 3. If neither exists, the cost is not calculated for that metadataKey.\n\nThis allows you to define common cost formulas once at the gateway level\n(e.g., billing_charges = input_tokens + output_tokens) and only override\nthem in specific routes when needed (e.g., premium routes with different pricing).",
+          "items": {
+            "description": "LLMRequestCost configures each request cost.",
+            "properties": {
+              "cel": {
+                "description": "CEL is the CEL expression to calculate the cost of the request.\nThe CEL expression must return a signed or unsigned integer. If the\nreturn value is negative, it will be error.\n\nThe expression can use the following variables:\n\n\t* model: the model name extracted from the request content. Type: string.\n\t* backend: the backend name in the form of \"name.namespace\". Type: string.\n\t* input_tokens: the number of input tokens. Type: unsigned integer.\n\t* cached_input_tokens: the number of cached read input tokens. Type: unsigned integer.\n\t* cache_creation_input_tokens: the number of cache creation input tokens. Type: unsigned integer.\n\t* output_tokens: the number of output tokens. Type: unsigned integer.\n\t* total_tokens: the total number of tokens. Type: unsigned integer.\n\t* reasoning_tokens: the number of reasoning tokens. Type: unsigned integer.\n\nFor example, the following expressions are valid:\n\n\t* \"model == 'llama' ?  input_tokens + output_token * 0.5 : total_tokens\"\n\t* \"backend == 'foo.default' ?  input_tokens + output_tokens : total_tokens\"\n\t* \"backend == 'bar.default' ?  (input_tokens - cached_input_tokens) + cached_input_tokens * 0.1 + cache_creation_input_tokens * 1.25 + output_tokens : total_tokens\"\n\t* \"input_tokens + output_tokens + total_tokens\"\n\t* \"input_tokens * output_tokens\"",
+                "type": "string"
+              },
+              "metadataKey": {
+                "description": "MetadataKey is the key of the metadata to store this cost of the request.",
+                "type": "string"
+              },
+              "type": {
+                "description": "Type specifies the type of the request cost. The default is \"OutputToken\",\nand it uses \"output token\" as the cost. The other types are \"InputToken\", \"TotalToken\",\n\"CachedInputToken\", \"CacheCreationInputToken\", \"ReasoningToken\", and \"CEL\".",
+                "enum": [
+                  "OutputToken",
+                  "InputToken",
+                  "CachedInputToken",
+                  "CacheCreationInputToken",
+                  "TotalToken",
+                  "ReasoningToken",
+                  "CEL"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "metadataKey",
+              "type"
+            ],
+            "type": "object",
+            "additionalProperties": false
+          },
+          "type": "array",
+          "x-kubernetes-list-map-keys": [
+            "metadataKey"
+          ],
+          "x-kubernetes-list-type": "map"
         }
       },
       "type": "object",

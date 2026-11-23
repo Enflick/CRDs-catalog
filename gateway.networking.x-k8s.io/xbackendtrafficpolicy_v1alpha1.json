@@ -32,7 +32,7 @@
                   "type": "string",
                   "x-kubernetes-validations": [
                     {
-                      "message": "interval can not be greater than one hour or less than one second",
+                      "message": "interval cannot be greater than one hour or less than one second",
                       "rule": "!(duration(self) < duration('1s') || duration(self) > duration('1h'))"
                     }
                   ]
@@ -67,7 +67,7 @@
                   "type": "string",
                   "x-kubernetes-validations": [
                     {
-                      "message": "interval can not be greater than one hour",
+                      "message": "interval cannot be greater than one hour",
                       "rule": "!(duration(self) == duration('0s') || duration(self) > duration('1h'))"
                     }
                   ]
@@ -104,11 +104,6 @@
               "type": "object",
               "additionalProperties": false
             },
-            "idleTimeout": {
-              "description": "IdleTimeout defines the idle timeout of the persistent session.\nOnce the session has been idle for more than the specified\nIdleTimeout duration, the session becomes invalid.\n\nSupport: Extended",
-              "pattern": "^([0-9]{1,5}(h|m|s|ms)){1,4}$",
-              "type": "string"
-            },
             "sessionName": {
               "description": "SessionName defines the name of the persistent session token\nwhich may be reflected in the cookie or the header. Users\nshould avoid reusing session names to prevent unintended\nconsequences, such as rejection or unpredictable behavior.\n\nSupport: Implementation-specific",
               "maxLength": 128,
@@ -116,7 +111,7 @@
             },
             "type": {
               "default": "Cookie",
-              "description": "Type defines the type of session persistence such as through\nthe use a header or cookie. Defaults to cookie based session\npersistence.\n\nSupport: Core for \"Cookie\" type\n\nSupport: Extended for \"Header\" type",
+              "description": "Type defines the type of session persistence such as through\nthe use of a header or cookie. Defaults to cookie based session\npersistence.\n\nSupport: Core for \"Cookie\" type\n\nSupport: Extended for \"Header\" type",
               "enum": [
                 "Cookie",
                 "Header"
@@ -129,12 +124,16 @@
             {
               "message": "AbsoluteTimeout must be specified when cookie lifetimeType is Permanent",
               "rule": "!has(self.cookieConfig) || !has(self.cookieConfig.lifetimeType) || self.cookieConfig.lifetimeType != 'Permanent' || has(self.absoluteTimeout)"
+            },
+            {
+              "message": "cookieConfig can only be set with type Cookie",
+              "rule": "!has(self.cookieConfig) || self.type == 'Cookie'"
             }
           ],
           "additionalProperties": false
         },
         "targetRefs": {
-          "description": "TargetRefs identifies API object(s) to apply this policy to.\nCurrently, Backends (A grouping of like endpoints such as Service,\nServiceImport, or any implementation-specific backendRef) are the only\nvalid API target references.\n\nCurrently, a TargetRef can not be scoped to a specific port on a\nService.",
+          "description": "TargetRefs identifies API object(s) to apply this policy to.\nCurrently, Backends (A grouping of like endpoints such as Service,\nServiceImport, or any implementation-specific backendRef) are the only\nvalid API target references.\n\nCurrently, a TargetRef cannot be scoped to a specific port on a\nService.",
           "items": {
             "description": "LocalPolicyTargetReference identifies an API object to apply a direct or\ninherited policy to. This should be used as part of Policy resources\nthat can target Gateway API resources. For more information on how this\npolicy attachment model works, and a sample Policy resource, refer to\nthe policy attachment documentation for Gateway API.",
             "properties": {
