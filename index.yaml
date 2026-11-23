@@ -14203,6 +14203,10 @@ rbac.textnow.io:
     filename: rbac.textnow.io/iamroleforserviceaccount_v1alpha1.json
     kind: iamroleforserviceaccount
     name: iamroleforserviceaccount_v1alpha1
+  - apiVersion: rbac.textnow.io/v1alpha1
+    filename: rbac.textnow.io/podidentity_v1alpha1.json
+    kind: podidentity
+    name: podidentity_v1alpha1
 rbacmanager.reactiveops.io:
   - apiVersion: rbacmanager.reactiveops.io/v1beta1
     filename: rbacmanager.reactiveops.io/rbacdefinition_v1beta1.json

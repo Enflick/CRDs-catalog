@@ -1,0 +1,210 @@
+{
+  "type": "object",
+  "required": [
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "serviceAccountName",
+        "clusterName",
+        "region",
+        "policyDocument"
+      ],
+      "properties": {
+        "clusterName": {
+          "type": "string"
+        },
+        "compositeDeletePolicy": {
+          "type": "string",
+          "enum": [
+            "Background",
+            "Foreground"
+          ]
+        },
+        "compositionRef": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "compositionRevisionRef": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "compositionRevisionSelector": {
+          "type": "object",
+          "required": [
+            "matchLabels"
+          ],
+          "properties": {
+            "matchLabels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "compositionSelector": {
+          "type": "object",
+          "required": [
+            "matchLabels"
+          ],
+          "properties": {
+            "matchLabels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "compositionUpdatePolicy": {
+          "type": "string",
+          "enum": [
+            "Automatic",
+            "Manual"
+          ]
+        },
+        "policyDocument": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "resourceRef": {
+          "type": "object",
+          "required": [
+            "apiVersion",
+            "kind",
+            "name"
+          ],
+          "properties": {
+            "apiVersion": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "serviceAccountName": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "writeConnectionSecretToRef": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "claimConditionTypes": {
+          "type": "array",
+          "x-kubernetes-list-type": "set",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conditions": {
+          "description": "Conditions of the resource.",
+          "type": "array",
+          "x-kubernetes-list-type": "map",
+          "x-kubernetes-list-map-keys": [
+            "type"
+          ],
+          "items": {
+            "type": "object",
+            "required": [
+              "lastTransitionTime",
+              "reason",
+              "status",
+              "type"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "message": {
+                "type": "string"
+              },
+              "observedGeneration": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "connectionDetails": {
+          "type": "object",
+          "properties": {
+            "lastPublishedTime": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
